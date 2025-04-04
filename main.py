@@ -1,100 +1,50 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import requests
 import os
+from deepseek_api import DeepSeekAPI  # ستحتاج لتنفيذ هذه الواجهة
 
-# جلب المفاتيح من Secrets
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+# تحميل المتغيرات السرية من Secrets
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
+YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY', None)  # اختياري
 
-# التحقق من وجود المفاتيح
-if not DISCORD_TOKEN or not DEEPSEEK_API_KEY or not YOUTUBE_API_KEY:
-    raise ValueError("⚠️ تأكد من إضافة المفاتيح إلى Secrets!")
-
-# إعداد Intents
 intents = discord.Intents.default()
 intents.message_content = True
-intents.messages = True
 
-# إنشاء البوت
-bot = commands.Bot(command_prefix="/", intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents)
 
-# حفظ قناة الرد التلقائي
-channel_id = None
+# تهيئة واجهة DeepSeek
+deepseek = DeepSeekAPI(DEEPSEEK_API_KEY)
 
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
+    print(f'تم تسجيل الدخول كـ {bot.user}')
     try:
         synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} command(s)")
+        print(f"تم مزامنة {len(synced)} أوامر.")
     except Exception as e:
-        print(f"❌ Error syncing commands: {e}")
+        print(f"خطأ في مزامنة الأوامر: {e}")
 
-# أمر لتحديد القناة
-@bot.tree.command(name="setchannel", description="حدد القناة التي يعمل فيها البوت")
-@app_commands.describe(channel="اختر القناة")
-async def set_channel(interaction: discord.Interaction, channel: discord.TextChannel):
-    global channel_id
-    channel_id = channel.id
-    await interaction.response.send_message(f"✅ تم تعيين القناة: {channel.mention}")
-
-# أمر للبحث في يوتيوب
-@bot.tree.command(name="youtube", description="ابحث في YouTube عن فيديو")
-@app_commands.describe(query="ما الذي تريد البحث عنه؟")
-async def youtube(interaction: discord.Interaction, query: str):
-    url = "https://www.googleapis.com/youtube/v3/search"
-    params = {
-        "part": "snippet",
-        "q": query,
-        "key": YOUTUBE_API_KEY,
-        "maxResults": 1,
-        "type": "video"
-    }
-    response = requests.get(url, params=params).json()
-
-    if "items" in response and len(response["items"]) > 0:
-        item = response["items"][0]
-        video_id = item["id"]["videoId"]
-        title = item["snippet"]["title"]
-        link = f"https://www.youtube.com/watch?v={video_id}"
-        await interaction.response.send_message(f"🎬 **{title}**\n🔗 {link}")
-    else:
-        await interaction.response.send_message("❌ لم يتم العثور على نتائج.")
-
-# الرد التلقائي في القناة المحددة باستخدام DeepSeek
-@bot.event
-async def on_message(message):
-    global channel_id
-    if message.author.bot or message.channel.id != channel_id:
-        return
-
-    headers = {
-        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "deepseek-chat",
-        "messages": [{"role": "user", "content": message.content}]
-    }
-
+@bot.tree.command(name="ask", description="اطرح سؤالاً على الذكاء الاصطناعي")
+@app_commands.describe(question="السؤال الذي تريد طرحه")
+async def ask(interaction: discord.Interaction, question: str):
+    await interaction.response.defer()
     try:
-        res = requests.post("https://api.deepseek.com/v1/chat/completions", headers=headers, json=data)
-        res_json = res.json()
-
-        if "choices" in res_json:
-            reply = res_json["choices"][0]["message"]["content"]
-            await message.reply(f"{message.author.mention} {reply}")
-        else:
-            await message.reply("❌ لم أتمكن من الرد.")
-
+        response = deepseek.ask_question(question)
+        await interaction.followup.send(f"**سؤال:** {question}\n**إجابة:** {response}")
     except Exception as e:
-        print(f"Error: {e}")
-        await message.reply("❌ حدث خطأ غير متوقع.")
+        await interaction.followup.send(f"حدث خطأ أثناء معالجة سؤالك: {str(e)}")
 
-    await bot.process_commands(message)
+# أوامر للمسؤولين فقط
+@bot.tree.command(name="setup", description="إعداد البوت للروم الحالي (للمسؤولين فقط)")
+@app_commands.default_permissions(administrator=True)
+async def setup(interaction: discord.Interaction):
+    try:
+        # هنا يمكنك إضافة أي إعدادات مخصصة
+        await interaction.response.send_message("تم إعداد البوت لهذه الغرفة بنجاح!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"حدث خطأ: {str(e)}", ephemeral=True)
 
-# تشغيل البوت
-bot.run(DISCORD_TOKEN)
+if __name__ == "__main__":
+    bot.run(DISCORD_TOKEN)
