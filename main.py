@@ -5,7 +5,7 @@ import requests
 import os
 
 # تحميل التوكنات من Secrets
-DISCORD_TOKEN = os.getenv("MTM1NzYzMTkxMTA4MTgwNzk2Mw.G8MACo.V1TGERnwUttam0qZpbs8KsFD8MXxTXXXnX3LpE")
+DISCORD_TOKEN = os.getenv("MTM1NzYzMTkxMTA4MTgwNzk2Mw.GIhpak.KU04VsRBzXvfbAR3scHDWwosxzKsS2p39scwWc")
 DEEPSEEK_API_KEY = os.getenv("sk-0b82e54648b94ceb8b4d674d23096e5b")
 YOUTUBE_API_KEY = os.getenv("AIzaSyCCJjW6FpqPumWZW5B7DjVfU7PG9dzMiSQ")
 
